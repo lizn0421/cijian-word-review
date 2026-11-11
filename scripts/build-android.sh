@@ -20,8 +20,9 @@ javac -encoding UTF-8 --release 8 -classpath "$platform" -d "$work/classes" \
   "$src/java/com/cijian/study/MainActivity.java"
 jar cf "$work/classes.jar" -C "$work/classes" .
 "$tools/d8" --min-api 23 --lib "$platform" --output "$work/dex" "$work/classes.jar"
-"$tools/aapt" package -f -M "$src/AndroidManifest.xml" -S "$src/res" \
-  -A "$work/assets" -I "$platform" -F "$work/unsigned.apk"
+"$tools/aapt2" compile --dir "$src/res" -o "$work/resources.zip"
+"$tools/aapt2" link -I "$platform" --manifest "$src/AndroidManifest.xml" \
+  -A "$work/assets" -o "$work/unsigned.apk" "$work/resources.zip"
 (cd "$work/dex" && zip -q -j -0 "$work/unsigned.apk" classes.dex)
 "$tools/zipalign" -f 4 "$work/unsigned.apk" "$work/aligned.apk"
 if [[ ! -f "$key" ]]; then
