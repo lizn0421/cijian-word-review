@@ -107,24 +107,28 @@
     const named = source >= 0 && target >= 0;
     const hasHeader = direct || named || sourceLang >= 0 || targetLang >= 0;
     const data = hasHeader ? rows.slice(1) : rows;
-    const cards = [];
+    const cards = [], skippedRows = [];
     let skipped = 0;
-    for (const raw of data) {
+    for (const [rowIndex, raw] of data.entries()) {
       const row = raw.map(value => value.trim());
-      let pair;
-      if (direct) pair = [row[enIndex], row[zhIndex]];
+      let pair, explicitPair = false;
+      if (direct) { pair = [row[enIndex], row[zhIndex]]; explicitPair = true; }
       else if (named) {
         const original = row[source], translation = row[target];
         if (sourceLang >= 0 && targetLang >= 0) {
-          if (englishName(row[sourceLang] || "") && chineseName(row[targetLang] || "")) pair = [original, translation];
-          if (chineseName(row[sourceLang] || "") && englishName(row[targetLang] || "")) pair = [translation, original];
+          if (englishName(row[sourceLang] || "") && chineseName(row[targetLang] || "")) { pair = [original, translation]; explicitPair = true; }
+          if (chineseName(row[sourceLang] || "") && englishName(row[targetLang] || "")) { pair = [translation, original]; explicitPair = true; }
         } else if (original && translation) {
           pair = isEnglish(original) ? [original, translation] : [translation, original];
         }
       } else {
         const enLang = row.findIndex(englishName);
         const zhLang = row.findIndex(chineseName);
-        if (row.length >= 4 && enLang >= 0 && zhLang >= 0) {
+        if (row.length === 4 && chineseName(row[1] || "") && isEnglish(row[2] || "")) {
+          pair = [row[2], row[3]]; explicitPair = true;
+        } else if (row.length === 4 && chineseName(row[0] || "") && englishName(row[1] || "")) {
+          pair = [row[3], row[2]]; explicitPair = true;
+        } else if (row.length >= 4 && enLang >= 0 && zhLang >= 0) {
           // Translate exports can group language labels together or alternate label and text.
           const values = row.filter((_, i) => i !== enLang && i !== zhLang);
           const en = values.find(isEnglish), zh = values.find(hasHan);
@@ -137,17 +141,30 @@
           if (en && zh) pair = [en, zh];
         }
       }
-      if (pair?.[0] && pair[1] && isEnglish(pair[0]) && hasHan(pair[1])) {
+      if (pair?.[0] && pair[1] && isEnglish(pair[0]) && (explicitPair || hasHan(pair[1]))) {
         const example = exampleIndex >= 0 ? row[exampleIndex] : !hasHeader && row.length === 3 ? row[2] : "";
         cards.push(createCard(...pair, example || ""));
-      } else skipped++;
+      } else {
+        skipped++;
+        skippedRows.push({row: rowIndex + (hasHeader ? 2 : 1), reason: "缺少英文或译文，或不是可识别的英中词条"});
+      }
     }
-    return {cards, skipped};
+    return {cards, skipped, skippedRows};
   }
   function mergeCards(existing, incoming) {
-    const cards = new Map(existing.map(card => [card.id, card]));
+    // Prefer the explicitly supplied lowercase spelling of common words.
+    // Keep acronyms and known proper names in their original spelling.
+    const properNames = /^(android|google|linux|windows|java|kotlin|python|github|javascript|typescript|openai)$/i;
+    const lowercase = new Set([...existing, ...incoming].filter(card => card.en === card.en.toLowerCase()).map(card => card.en.normalize("NFKC")));
+    const spelling = (card) => {
+      const lower = card.en.toLowerCase();
+      return lowercase.has(lower.normalize("NFKC")) && !properNames.test(card.en) && !/^[A-Z0-9_ -]+$/.test(card.en)
+        ? {...card, en: lower} : card;
+    };
+    const cards = new Map(existing.map(card => [card.id, spelling(card)]));
     let added = 0, updated = 0, duplicate = 0;
-    for (const item of incoming) {
+    for (const original of incoming) {
+      const item = spelling(original);
       const previous = cards.get(item.id);
       if (!previous) { cards.set(item.id, item); added++; continue; }
       const progress = item.last > previous.last || (item.last === previous.last && item.reviews > previous.reviews);

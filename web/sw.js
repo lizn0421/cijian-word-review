@@ -1,5 +1,5 @@
 "use strict";
-const NAME = "cijian-static-v1";
+const NAME = "cijian-static-v1.0.1";
 const FILES = ["./", "./index.html", "./core.js", "./app.js", "./style.css", "./icon.png", "./icon-192.png", "./manifest.webmanifest"];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(NAME).then(cache => cache.addAll(FILES))));
 self.addEventListener("activate", (event) => event.waitUntil(

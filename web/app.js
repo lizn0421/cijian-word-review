@@ -234,7 +234,7 @@ function importText(text) {
   const result = C.mergeCards(state.cards, parsed.cards.map(card => ({...card, imported: true})));
   if (save({...state, cards: result.cards})) {
     render();
-    status("新增 " + result.added + " 张，更新 " + result.updated + " 张，重复 " + result.duplicate + " 张，跳过 " + parsed.skipped + " 行。");
+    status("新增 " + result.added + " 张，更新 " + result.updated + " 张，重复 " + result.duplicate + " 张，跳过 " + parsed.skipped + " 行。" + (parsed.skippedRows.length ? " 跳过：" + parsed.skippedRows.slice(0, 5).map(item => "第 " + item.row + " 行（" + item.reason + "）").join("；") : ""));
   }
 }
 function importBackup(text) {
